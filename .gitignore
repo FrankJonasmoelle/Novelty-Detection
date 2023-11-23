@@ -1,6 +1,11 @@
 data/
+data_preprocessed/
+test/
+test_preprocessed/
 .DS_STORE
 *.ipynb
+*.csv
+venv_novelty/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
