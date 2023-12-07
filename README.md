@@ -55,7 +55,7 @@ $$
 and
 
 $$
-    BIDF_{w, p} = \log \left( \frac{\# \text{ patents prior to } p}{1 + \# \text{ documents prior to } p \text{ that include term } w} \right)
+    BIDF_{w, p} = \log \left( \frac{ \text{ num patents prior to } p}{1 + \text{ num documents prior to } p \text{ that include term } w} \right)
 $$
 
 To calculate the similarity $p_{i, j}$ between patent $i$ and $j$, the TFBIDF score is calculated for each term $w$ in patents $i$ and $j$.
