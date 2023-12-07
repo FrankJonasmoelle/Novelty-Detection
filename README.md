@@ -16,20 +16,22 @@ Patent impact calculation is implemented according to the method described by Ke
 
 ### Steps
 
-1) Calculate **novelty**: calculate backward similarity (BS) between a patent $p$ and all patents published 5 years prior to $p$
+1) Calculate **novelty**: calculate backward similarity (BS) between a patent $p$ and all patents published 5 years prior to $p$.
 
 $$
 BS_{j}^{\tau} = \sum_{i \in \mathcal{B}{j, \tau}} p_{j, i}
 $$
+
 for patents $i$ and $j$.
 
 
 2) Calculate **impact**: calculate forward similarity (FS) between a patent $p$ and all patents published 10 years after $p$
 
 $$
-FS_{j}^{\tau} = \sum_{i \in \mathcal{B}{j, \tau}} p_{j, i}
+FS_{j}^{\tau} = \sum_{i \in \mathcal{F}{j, \tau}} p_{j, i}
 $$
 
+for patents $i$ and $j$.
 
 3) Calculate **importance**: calculate ratio between FS and BS -> higher value if novelty and impact are high // BS is low and FS is high
 
@@ -39,14 +41,19 @@ $$
 
 ### The similarity score is based on TFIBDF, a variatin of TFIDF: 
 For a patent $p$ and a term $w$, the TFBIDF score is calculated the following:
+
 $$
     TFBIDF_{w, p} = TF_{w, p} \cdot BIDF_{w}
 $$
+
 where 
+
 $$
     TF_{w, p} = \frac{c_{p,w}}{\sum_{k}{}c_{p,k}}
 $$
+
 and
+
 $$
     BIDF_{w, p} = \log \left( \frac{\# \text{ patents prior to } p}{1 + \# \text{ documents prior to } p \text{ that include term } w} \right)
 $$
