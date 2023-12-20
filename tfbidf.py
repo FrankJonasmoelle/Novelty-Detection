@@ -375,10 +375,10 @@ def plot_num_patents(patent_mapping, start_year=1890, end_year=1918):
     plt.savefig("patents_per_capita.png")
     plt.show()
 
-def load_existing_results(output_path):
-    if os.path.exists(output_path):
-        df_results = pd.read_csv(output_path)
-        results = {patent: df_results[patent].to_dict() for patent in df_results.columns}
+def load_existing_results(path):
+    if os.path.exists(path):
+        df_results = pd.read_csv(path, index_col=0)
+        results = df_results.to_dict(orient='index')
     else:
         results = {}
     return results
@@ -410,16 +410,16 @@ def main(textfolder_path, jsonfolder_path, output_path="results.csv"):
         else:
             print(f"Score of patent {patent} already calculated")
         if count % 10 == 0: # save results every 10 patents to csv
-            df = pd.DataFrame(results)
-            df.to_csv(output_path, index=False, encoding="utf-8")
+            df = pd.DataFrame.from_dict(results, orient='index')
+            df.to_csv(output_path)
         count += 1
-    df = pd.DataFrame(results)
-    df.to_csv(output_path, index=False, encoding="utf-8")
+    df = pd.DataFrame.from_dict(results, orient='index')
+    df.to_csv(output_path)
     return
     
 if __name__=="__main__":
-    textfolder_path = "test_preprocessed/"
-    jsonfolder_path = "json/"
+    textfolder_path = "../data_preprocessed/"
+    jsonfolder_path = "../json/"
 
     main(textfolder_path, jsonfolder_path)
 
