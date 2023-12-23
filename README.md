@@ -19,7 +19,7 @@ Patent impact calculation is implemented according to the method described by Ke
 1) Calculate **novelty**: calculate backward similarity (BS) between a patent $p$ and all patents published 5 years prior to $p$.
 
 $$
-BS_{j}^{\tau} = \frac{1}{| \mathcal{B}_{j, \tau} |} \sum_{i \in \mathcal{B}_{j, \tau}} p_{j, i}
+    BS_{j}^{\tau} = \frac{1}{| \mathcal{B}_{j, \tau} |} \sum_{i \in \mathcal{B}_{j, \tau}} p_{j, i}
 $$
 
 for patents $i$ and $j$.
@@ -28,7 +28,7 @@ for patents $i$ and $j$.
 2) Calculate **impact**: calculate forward similarity (FS) between a patent $p$ and all patents published 10 years after $p$
 
 $$
-FS_{j}^{\tau} = \frac{1}{| \mathcal{F}_{j, \tau} |} \sum_{i \in \mathcal{F}_{j, \tau}} p_{j, i}
+    FS_{j}^{\tau} = \frac{1}{| \mathcal{F}_{j, \tau} |} \sum_{i \in \mathcal{F}_{j, \tau}} p_{j, i}
 $$
 
 for patents $i$ and $j$.
@@ -36,7 +36,7 @@ for patents $i$ and $j$.
 3) Calculate **importance**: calculate ratio between FS and BS -> higher value if novelty and impact are high // BS is low and FS is high
 
 $$
-q_{j}^{\tau} = \frac{FS_{j}^{\tau}}{BS_{j}^{\tau}}
+    q_{j}^{\tau} = \frac{FS_{j}^{\tau}}{BS_{j}^{\tau}}
 $$
 
 ### The similarity score is based on TFIBDF, a variatin of TFIDF: 
