@@ -242,6 +242,9 @@ def calculate_patent_similarity_naive(patent_mapping, patent_id_i, patent_id_j):
 
     # calculate cosine similarity
     similarity = np.dot(normalized_w_i, normalized_w_j) / (np.linalg.norm(normalized_w_i) * np.linalg.norm(normalized_w_j))
+    if math.isnan(similarity):
+        print("similarity is nan")
+        similarity = 0
     return similarity
 
 def get_backward_document_list(patent_mapping, patent_id, num_years):
@@ -276,24 +279,19 @@ def calculate_backward_similarity(patent_mapping, term_count_per_patent, patent_
     for backward_patent_id in backward_patents:
         if backward_patent_id not in SIMILARITY_DICT[patent_id]:  
             similarity = calculate_patent_similarity_memoization(patent_mapping, term_count_per_patent, patent_id, backward_patent_id)
-            if math.isnan(similarity):
-                print("similarity is nan")
-                similarity = 0
             SIMILARITY_DICT[patent_id][backward_patent_id] = similarity
             SIMILARITY_DICT[backward_patent_id][patent_id] = similarity
         else:
             similarity = SIMILARITY_DICT[patent_id][backward_patent_id] # retrieve similarity from dictionary
-        if math.isnan(similarity):
-            print("similarity is nan")
-            similarity = 0
-        print(f"backward similarity between {patent_id} and {backward_patent_id} = ", similarity)
         backward_similarity += similarity
+        print(f"BS between {patent_id} and {backward_patent_id} is {similarity}")
     # scale backward similarity
     try:
         backward_similarity = backward_similarity / len(backward_patents)
     except Exception as e:
         print(e)
         backward_similarity = 0
+    print(f"backward similarity for patent {patent_id}: {backward_similarity}")
     return backward_similarity
 
 def calculate_forward_similarity(patent_mapping, term_count_per_patent, patent_id, forward_years):
@@ -304,21 +302,19 @@ def calculate_forward_similarity(patent_mapping, term_count_per_patent, patent_i
     for forward_patent_id in forward_patents:
         if forward_patent_id not in SIMILARITY_DICT[patent_id]: 
             similarity = calculate_patent_similarity_memoization(patent_mapping, term_count_per_patent, patent_id, forward_patent_id)
-            if math.isnan(similarity):
-                print("similarity is nan")
-                similarity = 0
             SIMILARITY_DICT[patent_id][forward_patent_id] = similarity # store score to be able to retrieve it
             SIMILARITY_DICT[forward_patent_id][patent_id] = similarity
         else:
             similarity = SIMILARITY_DICT[patent_id][forward_patent_id] # retrieve similarity from dictionary
-        print(f"forward similarity between {patent_id} and {forward_patent_id} = ", similarity)
         forward_similarity += similarity
+        print(f"FS between {patent_id} and {forward_patent_id} is {similarity}")
     # scale forward similarity
     try:
         forward_similarity = forward_similarity / len(forward_patents)
     except Exception as e:
         print(e)
         forward_similarity = 0
+    print(f"forward similarity for patent {patent_id}: {forward_similarity}")
     return forward_similarity
 
 def calculate_patent_importance(patent_mapping, term_count_per_patent, patent_id, backward_years=5, forward_years=10):
@@ -379,6 +375,7 @@ def load_existing_results(path):
     if os.path.exists(path):
         df_results = pd.read_csv(path, index_col=0)
         results = df_results.to_dict(orient='index')
+        results = {str(key): value for key, value in results.items()} # convert keys to strings
     else:
         results = {}
     return results
@@ -405,7 +402,7 @@ def main(textfolder_path, jsonfolder_path, output_path="results.csv"):
         if patent not in results: 
             novelty, impact, importance = calculate_patent_importance(patent_mapping, term_count_per_patent, patent, backward_years=5, forward_years=10)
             print(f"Scores calculated for patent {patent}: Novelty: {novelty}, Impact: {impact}, Importance: {importance}")
-            scores = {"novelty": novelty, "impact": impact, "importance": importance}
+            scores = {"novelty": novelty, "impact": impact, "importance": importance, "year": patent_mapping[patent]["date"]}
             results[patent] = scores
         else:
             print(f"Score of patent {patent} already calculated")
