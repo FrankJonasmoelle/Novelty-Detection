@@ -19,7 +19,7 @@ Patent impact calculation is implemented according to the method described by Ke
 1) Calculate **novelty**: calculate backward similarity (BS) between a patent $p$ and all patents published 5 years prior to $p$.
 
 $$
-BS_{j}^{\tau} = \frac{1}{\left| \mathcal{B}_{j, \tau} \right|} \sum_{i \in \mathcal{B}_{j, \tau}} p_{j, i}
+BS_{j}^{\tau} = \frac{1}{| \mathcal{B}_{j, \tau} |} \sum_{i \in \mathcal{B}_{j, \tau}} p_{j, i}
 $$
 
 for patents $i$ and $j$.
@@ -28,7 +28,7 @@ for patents $i$ and $j$.
 2) Calculate **impact**: calculate forward similarity (FS) between a patent $p$ and all patents published 10 years after $p$
 
 $$
-FS_{j}^{\tau} = \frac{1}{\left| \mathcal{F}_{j, \tau} \right|} \sum_{i \in \mathcal{F}_{j, \tau}} p_{j, i}
+FS_{j}^{\tau} = \frac{1}{| \mathcal{F}_{j, \tau} |} \sum_{i \in \mathcal{F}_{j, \tau}} p_{j, i}
 $$
 
 for patents $i$ and $j$.
