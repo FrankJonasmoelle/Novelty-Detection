@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from functools import lru_cache
 import multiprocessing
+import collections
 
 
 def generate_json(textfolder_path, jsonfolder_path, start_year=1885, end_year=1928):
@@ -14,17 +15,17 @@ def generate_json(textfolder_path, jsonfolder_path, start_year=1885, end_year=19
         "1":{
             "filepath": "data/1.txt",
             "date": datetime.datetime(1900, 3, 17, 0, 0)
-            "text": ["det", "är, "en", "exempel"]
+            "text": ["det", "är, "ett", "exempel"]
         },
         "2":{
             "filepath": "data/2.txt",
             "date": datetime.datetime(1901, 3, 17, 0, 0)
-            "text": ["det", "är, "en", "exempel"]
+            "text": ["det", "är, "ett", "exempel"]
         },
         "3":{
             "filepath": "data/3.txt",
             "date": datetime.datetime(1902, 3, 17, 0, 0)
-            "text": ["det", "är, "en", "exempel"]
+            "text": ["det", "är, "ett", "exempel"]
         }
     }
     """
@@ -84,17 +85,11 @@ def calculate_tf(patent_id, term):
     """receives patent_mapping, patent_id and the term of interest. Returns the frequency of *term* in the patent
     identified by *patent_id*"""
     text = PATENT_MAPPING[patent_id]["text"]
-    if len(text) == 0:
+    text_length = len(text)
+    if text_length == 0:
         return 0
-    term_frequency = 0
-    for token in text:
-        if token == term:
-            term_frequency += 1
-    try:
-        tf = term_frequency / len(text)
-    except Exception as e:
-        print(e)
-        tf = 0
+    term_frequency = sum(1 for token in text if token == term)
+    tf = term_frequency / text_length
     return tf
 
 def calculate_term_frequencies_per_patent(start_year, end_year):
