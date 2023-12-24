@@ -71,6 +71,7 @@ def get_prior_patent_list(date):
     return prior_patent_ls 
 
 def get_patents_in_timerange(start_year, end_year):
+    """returns list of patent ids within a given time range"""
     ls = []
     for key, value in PATENT_MAPPING.items():
         current_date = value["date"] 
@@ -126,6 +127,9 @@ def calculate_term_frequencies_per_patent(start_year, end_year):
     return term_count_per_patent
 
 def search_w_count(patent, term):
+    """Helper function for retrival of the number of patents that include a certain term until a specific date. 
+    It uses the *term_count_per_patent* dictionary to search for the last occurance of term *term* and 
+    returns the accurate count used for the bidf calculation."""
     prevous_patent_ids_ls = get_prior_patent_list(PATENT_MAPPING[patent]["date"]) #everything before id
     # search reversed list
     prevous_patent_ids_ls.reverse()
@@ -139,6 +143,10 @@ def search_w_count(patent, term):
 
 @lru_cache(maxsize=5000000)  
 def calculate_bidf_memoization(term, earlier_patent_id):
+    """Calculates the BIDF score for a given patent and term using memoization. 
+    High value: Most patents before *patent_id* do not contain word *term*
+    Low value: Most patents before *patent_id* do contain word *term* 
+    """
     num_patents_prior = TERM_COUNT_PER_PATENT[earlier_patent_id]["num_prior_patents"]
     try: 
         num_patents_prior_with_w = TERM_COUNT_PER_PATENT[earlier_patent_id]["counts"][term]
@@ -154,6 +162,12 @@ def calculate_bidf_memoization(term, earlier_patent_id):
 
 @lru_cache(maxsize=5000000) 
 def calculate_patent_similarity_memoization(patent_id_i, patent_id_j):
+    """calculates the cosine similarity between patent i and patend j using memoization. 
+    Steps:
+    1) calculate TFBIDF for patent i and j, with t=min(t_i, t_j)
+    2) create vectors W_i, W_j 
+    3) calculate cosine similarity between W_i and W_j
+    """
     min_date = min(PATENT_MAPPING[patent_id_i]["date"], PATENT_MAPPING[patent_id_j]["date"])
     if min_date == PATENT_MAPPING[patent_id_i]["date"]:
         earlier_patent_id = patent_id_i
@@ -273,8 +287,8 @@ def load_existing_results(path):
     return results
 
 def worker(patent):
-    # worker function to enable multiprocessing
-    novelty, impact, importance = calculate_patent_importance(patent, backward_years=5, forward_years=10)
+    """Worker function for importance calculation for multiprocessing"""
+    novelty, impact, importance = calculate_patent_importance(patent, backward_years=5, forward_years=5)
     print(f"Scores calculated for patent {patent}: Novelty: {novelty}, Impact: {impact}, Importance: {importance}")
     scores = {"novelty": novelty, "impact": impact, "importance": importance, "year": PATENT_MAPPING[patent]["date"]}
     return patent, scores
@@ -283,17 +297,15 @@ def main(output_path="results.csv"):
     patents_in_range = get_patents_in_timerange(start_year=1890, end_year=1918)
     results = load_existing_results(output_path)
 
-    # Prepare a list of patents that need processing
     patents_to_process = [patent for patent in patents_in_range if patent not in results]
 
-    # Set up multiprocessing pool
+    # Set up multiprocessing
     pool_size = multiprocessing.cpu_count() 
     count = 0
     with multiprocessing.Pool(processes=pool_size) as pool:
         for patent, scores in pool.imap_unordered(worker, patents_to_process):
             results[patent] = scores
-            if count % 10 == 0:  # Adjust this number based on your needs
-                print("trying to store...")
+            if count % 10 == 0: 
                 df = pd.DataFrame.from_dict(results, orient='index')
                 df.to_csv(output_path)
             count += 1

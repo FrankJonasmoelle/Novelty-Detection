@@ -29,8 +29,8 @@ def lemmatize(text):
     doc = nlp(text)
     return ' '.join([token.lemma_ for token in doc])
 
+stopwords = nltk.corpus.stopwords.words('swedish') 
 def remove_stopwords(ls):
-    stopwords = nltk.corpus.stopwords.words('swedish') 
     return [item for item in ls if item not in stopwords]
 
 def remove_letters(ls):
@@ -120,9 +120,4 @@ def get_most_frequent_keywords(input_folder="data_preprocessed/", output_path="f
     return list(sorted_vocabulary.items())
 
 if __name__=="__main__":
-    #preprocess_files(input_folder="data/", output_folder="test_preprocessed/")
-    #ls = get_most_frequent_keywords("data_preprocessed/")
-    #print(ls)'
-    
-
-    preprocess_files_parallel(input_folder="data/", output_folder="test_preprocessed")
+    preprocess_files_parallel(input_folder="data/", output_folder="data_preprocessed")

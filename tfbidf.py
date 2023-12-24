@@ -4,8 +4,6 @@ import json
 from datetime import datetime
 import numpy as np
 import pandas as pd
-from numpy.linalg import norm
-from concurrent.futures import ThreadPoolExecutor
 from collections import defaultdict
 import matplotlib.pyplot as plt
 
@@ -64,7 +62,7 @@ def generate_json(textfolder_path, jsonfolder_path, start_year=1885, end_year=19
     return sorted_dictionary
 
 def get_prior_patent_list(patent_mapping, date):
-    """returns list of patent_ids that have been published prior to *date*"""
+    """returns list of patent ids that have been published prior to *date*"""
     prior_patent_ls = []
     for key, value in patent_mapping.items():
         current_date = value["date"]
@@ -75,6 +73,7 @@ def get_prior_patent_list(patent_mapping, date):
     return prior_patent_ls 
 
 def get_patents_in_timerange(patent_mapping, start_year, end_year):
+    """returns list of patent ids within a given time range"""
     ls = []
     for key, value in patent_mapping.items():
         current_date = value["date"] 
@@ -100,12 +99,15 @@ def calculate_tf(patent_mapping, patent_id, term):
     return tf
 
 def calculate_term_frequencies_per_patent(patent_mapping, start_year, end_year):
-     # generate the following dict:
-    # {
-    #     "1114": {"term_1": 192, "term_2": 185},
-    #     "1119" {"term_1": 193, "term_2": 185},
-    #       ...
-    # }
+    """generate the following that is used to speed up the bidf calculation:
+    {
+        "1114": {"term_1": 192, "term_2": 185},
+        "1119" {"term_1": 193, "term_2": 185},
+          ...
+    }
+    It functions as a lookup dictionary for fast retrival of the number of patents that include a certain term 
+    a specific date. Works 
+    """
     global_term_count = {}
     term_count_per_patent = {}
 
@@ -129,6 +131,9 @@ def calculate_term_frequencies_per_patent(patent_mapping, start_year, end_year):
     return term_count_per_patent
 
 def search_w_count(patent_mapping, patent, term, term_count_per_patent):
+    """Helper function for retrival of the number of patents that include a certain term until a specific date. 
+    It uses the *term_count_per_patent* dictionary to search for the last occurance of term *term* and 
+    returns the accurate count used for the bidf calculation."""
     prevous_patent_ids_ls = get_prior_patent_list(patent_mapping, patent_mapping[patent]["date"]) #everything before id
     # search reversed list
     prevous_patent_ids_ls.reverse()
@@ -141,6 +146,10 @@ def search_w_count(patent_mapping, patent, term, term_count_per_patent):
     return 0
 
 def calculate_bidf_memoization(patent_mapping, term_count_per_patent, term, earlier_patent_id):
+    """Calculates the BIDF score for a given patent and term using memoization. 
+    High value: Most patents before *patent_id* do not contain word *term*
+    Low value: Most patents before *patent_id* do contain word *term* 
+    """
     num_patents_prior = term_count_per_patent[earlier_patent_id]["num_prior_patents"]
     try: 
         num_patents_prior_with_w = term_count_per_patent[earlier_patent_id]["counts"][term]
@@ -155,6 +164,12 @@ def calculate_bidf_memoization(patent_mapping, term_count_per_patent, term, earl
     return bidf
 
 def calculate_patent_similarity_memoization(patent_mapping, term_count_per_patent, patent_id_i, patent_id_j):
+    """calculates the cosine similarity between patent i and patend j using memoization. 
+    Steps:
+    1) calculate TFBIDF for patent i and j, with t=min(t_i, t_j)
+    2) create vectors W_i, W_j 
+    3) calculate cosine similarity between W_i and W_j
+    """
     min_date = min(patent_mapping[patent_id_i]["date"], patent_mapping[patent_id_j]["date"])
     if min_date == patent_mapping[patent_id_i]["date"]:
         earlier_patent_id = patent_id_i
@@ -337,14 +352,36 @@ def get_swedish_population_by_year(start_year, end_year):
     year_population_mapping = dict(zip(year, population))
     return year_population_mapping
 
-def plot_breakthrough_patents():
+def plot_breakthrough_patents(input_file="results.csv"):
     """Plots the number of breakthrough patents per capita. Breakthrough patents are those that fall in the
     top 10 percent of the unconditional distribution of our importance measure, where importance is defined as the ratio
     of the 10-year forward to the 5-year backward similarity, net of year fixed effects"""
-    pass
+    results = pd.read_csv(input_file)
+    results = results.rename(columns={"Unnamed: 0": "patent_id"})
+    # sort by importance value
+    sorted_df = results.sort_values(by='importance', ascending=False)
+    # get top 10% importances
+    top_10_percentile = int(len(sorted_df) * 0.1)
+    df_top_10_percent = sorted_df.head(top_10_percentile)
+    df_top_10_percent['year'] = pd.to_datetime(df_top_10_percent['year'])
+    df_top_10_percent['year'] = df_top_10_percent['year'].dt.year
+    # group by year and count number of patents in this year
+    top_percentile_patents_per_year = df_top_10_percent.groupby('year').size()
+    # plot
+    years = top_percentile_patents_per_year.index
+    count_per_year = list(top_percentile_patents_per_year.values)
+
+    plt.figure(figsize=(15, 6))
+    plt.plot(years, count_per_year)
+    plt.xlabel('Year')
+    plt.ylabel('Number of Patents')
+    plt.title('Number of Breakthrough Patents per Year')
+    plt.xticks(rotation=45, ha='right')  # Adjust the rotation angle as needed
+    plt.savefig("breakthrough_patents_per_year.png")
+    plt.show()
 
 def plot_num_patents(patent_mapping, start_year=1890, end_year=1918):
-    """plots the total number of patents per 1.000 people (scaled by population)"""
+    """plots the total number of patents per 1.000 people (scaled by swedish population)"""
     patents_per_year = {}
     for key, value in patent_mapping.items():
         year = value["date"].year
@@ -406,7 +443,7 @@ def main(textfolder_path, jsonfolder_path, output_path="results.csv"):
             results[patent] = scores
         else:
             print(f"Score of patent {patent} already calculated")
-        if count % 10 == 0: # save results every 10 patents to csv
+        if count % 10 == 0: # after every 10 patents, add results to csv
             df = pd.DataFrame.from_dict(results, orient='index')
             df.to_csv(output_path)
         count += 1
@@ -419,6 +456,3 @@ if __name__=="__main__":
     jsonfolder_path = "../json/"
 
     main(textfolder_path, jsonfolder_path)
-
-    # output: csv file with 
-    # id | year | novelty_score | impact_score | importance_score
