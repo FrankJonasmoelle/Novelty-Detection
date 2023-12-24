@@ -300,7 +300,7 @@ def main(output_path="results.csv"):
     with multiprocessing.Pool(processes=pool_size) as pool:
         for patent, scores in pool.imap_unordered(worker, patents_to_process):
             results[patent] = scores
-            if count % 10 == 0: 
+            if count % 5 == 0: 
                 df = pd.DataFrame.from_dict(results, orient='index')
                 df.to_csv(output_path)
             count += 1
