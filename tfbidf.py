@@ -375,6 +375,7 @@ def plot_breakthrough_patents(input_file="results.csv"):
     plt.plot(years, count_per_year)
     plt.xlabel('Year')
     plt.ylabel('Number of Patents')
+    plt.ylim(0, max(count_per_year)*1.2)
     plt.title('Number of Breakthrough Patents per Year')
     plt.xticks(rotation=45, ha='right')  # Adjust the rotation angle as needed
     plt.savefig("breakthrough_patents_per_year.png")
