@@ -8,7 +8,7 @@ from collections import defaultdict
 import matplotlib.pyplot as plt
 
 
-SIMILARITY_DICT = defaultdict(dict) # dictionary that stores similarity scores between patents for dynamic programming
+SIMILARITY_DICT = defaultdict(dict) # dictionary that stores similarity scores between patents
 
 def generate_json(textfolder_path, jsonfolder_path, start_year=1885, end_year=1928):
     """generates mapping between the patent id and additional data
@@ -16,17 +16,17 @@ def generate_json(textfolder_path, jsonfolder_path, start_year=1885, end_year=19
         "1":{
             "filepath": "data/1.txt",
             "date": datetime.datetime(1900, 3, 17, 0, 0)
-            "text": ["det", "är, "en", "exempel"]
+            "text": ["det", "är, "ett", "exempel"]
         },
         "2":{
             "filepath": "data/2.txt",
             "date": datetime.datetime(1901, 3, 17, 0, 0)
-            "text": ["det", "är, "en", "exempel"]
+            "text": ["det", "är, "ett", "exempel"]
         },
         "3":{
             "filepath": "data/3.txt",
             "date": datetime.datetime(1902, 3, 17, 0, 0)
-            "text": ["det", "är, "en", "exempel"]
+            "text": ["det", "är, "ett", "exempel"]
         }
     }
     """
@@ -91,11 +91,7 @@ def calculate_tf(patent_mapping, patent_id, term):
     for token in text:
         if token == term:
             term_frequency += 1
-    try:
-        tf = term_frequency / len(text)
-    except Exception as e:
-        print(e)
-        tf = 0
+    tf = term_frequency / len(text)
     return tf
 
 def calculate_term_frequencies_per_patent(patent_mapping, start_year, end_year):
@@ -354,10 +350,8 @@ def get_swedish_population_by_year(start_year, end_year):
 
 def plot_breakthrough_patents(input_file="results.csv"):
     """Plots the number of breakthrough patents per capita. Breakthrough patents are those that fall in the
-    top 10 percent of the unconditional distribution of our importance measure, where importance is defined as the ratio
-    of the 10-year forward to the 5-year backward similarity, net of year fixed effects"""
+    top 10 percent of the unconditional distribution of our importance measure."""
     results = pd.read_csv(input_file)
-    results = results.rename(columns={"Unnamed: 0": "patent_id"})
     # sort by importance value
     sorted_df = results.sort_values(by='importance', ascending=False)
     # get top 10% importances
@@ -367,10 +361,18 @@ def plot_breakthrough_patents(input_file="results.csv"):
     df_top_10_percent['year'] = df_top_10_percent['year'].dt.year
     # group by year and count number of patents in this year
     top_percentile_patents_per_year = df_top_10_percent.groupby('year').size()
+    # scale by Swedish population
+    top_percentile_patents_per_year = top_percentile_patents_per_year.to_dict()
+    population_by_year = get_swedish_population_by_year(1890, 1918)
+    scaled_breakthrough_patents_by_year = {}
+    for year, num_breakthrough_patents in top_percentile_patents_per_year.items():
+        population = population_by_year[year]
+        num_breakthrough_patents = top_percentile_patents_per_year[year]
+        scaled_patent_count = (num_breakthrough_patents / population) * 1000
+        scaled_breakthrough_patents_by_year[year] = scaled_patent_count
     # plot
-    years = top_percentile_patents_per_year.index
-    count_per_year = list(top_percentile_patents_per_year.values)
-
+    years = scaled_breakthrough_patents_by_year.keys()
+    count_per_year = scaled_breakthrough_patents_by_year.values()
     plt.figure(figsize=(15, 6))
     plt.plot(years, count_per_year)
     plt.xlabel('Year')
