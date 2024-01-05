@@ -91,7 +91,21 @@ def calculate_tf(patent_id, term):
     term_frequency = sum(1 for token in text if token == term)
     tf = term_frequency / text_length
     return tf
-
+    
+def generate_tf_mapping(start_date, end_date):
+    tf_mapping = {}
+    patents = get_patents_in_timerange(start_date, end_date)
+    for patent in patents:
+        text = PATENT_MAPPING[patent]["text"]
+        vocab = set(text)
+        term_frequencies = {}
+        for term in vocab:
+            tf_w = sum(1 for token in vocab if token == term)
+            tf_w = tf_w / len(text)
+            term_frequencies[term] = tf_w
+        tf_mapping[patent] = term_frequencies
+    return tf_mapping
+    
 def calculate_term_frequencies_per_patent(start_year, end_year):
      # generate the following dict:
     # {
@@ -318,6 +332,8 @@ PATENT_MAPPING = generate_json(textfolder_path, jsonfolder_path)
 print("generating term count dictionary")
 TERM_COUNT_PER_PATENT = calculate_term_frequencies_per_patent(start_year=1885, end_year=1928)
 
+print("generating tf mapping")
+TF_MAPPING = generate_tf_mapping(start_date=1898, end_date=1928)
 
 if __name__=="__main__":
     main()
