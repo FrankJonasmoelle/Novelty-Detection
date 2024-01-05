@@ -84,13 +84,10 @@ def get_patents_in_timerange(start_year, end_year):
 def calculate_tf(patent_id, term):
     """receives patent_mapping, patent_id and the term of interest. Returns the frequency of *term* in the patent
     identified by *patent_id*"""
-    text = PATENT_MAPPING[patent_id]["text"]
-    text_length = len(text)
-    if text_length == 0:
+    if term not in TF_MAPPING[patent_id]:
         return 0
-    term_frequency = sum(1 for token in text if token == term)
-    tf = term_frequency / text_length
-    return tf
+    else:
+        return TF_MAPPING[patent_id][term]
     
 def generate_tf_mapping(start_date, end_date):
     tf_mapping = {}
