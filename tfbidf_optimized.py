@@ -330,7 +330,7 @@ print("generating term count dictionary")
 TERM_COUNT_PER_PATENT = calculate_term_frequencies_per_patent(start_year=1885, end_year=1928)
 
 print("generating tf mapping")
-TF_MAPPING = generate_tf_mapping(start_date=1898, end_date=1928)
+TF_MAPPING = generate_tf_mapping(start_date=1885, end_date=1928)
 
 if __name__=="__main__":
     main()
