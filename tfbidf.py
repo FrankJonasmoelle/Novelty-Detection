@@ -8,7 +8,7 @@ from collections import defaultdict
 import matplotlib.pyplot as plt
 
 
-SIMILARITY_DICT = defaultdict(dict) # dictionary that stores similarity scores between patents
+SIMILARITY_DICT = defaultdict(dict) # dictionary that stores similarity scores between patents for dynamic programming
 
 def generate_json(textfolder_path, jsonfolder_path, start_year=1885, end_year=1928):
     """generates mapping between the patent id and additional data
@@ -149,7 +149,8 @@ def calculate_bidf_memoization(patent_mapping, term_count_per_patent, term, earl
     num_patents_prior = term_count_per_patent[earlier_patent_id]["num_prior_patents"]
     try: 
         num_patents_prior_with_w = term_count_per_patent[earlier_patent_id]["counts"][term]
-    except Exception as e: # exception will happen if earlier_patent does not include "term", in this case search in term_count_per_patent for previous count
+    except Exception as e: # exception will happen if earlier_patent does not include "term", 
+                        #in this case search in term_count_per_patent for previous count
         # search for it in previous patents in term_count_per_patent
         num_patents_prior_with_w = search_w_count(patent_mapping, earlier_patent_id, term, term_count_per_patent)
     try:

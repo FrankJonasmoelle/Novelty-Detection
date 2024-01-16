@@ -2,6 +2,7 @@ data/
 data_preprocessed/
 test/
 test_preprocessed/
+myenv/
 .DS_STORE
 *.ipynb
 *.csv

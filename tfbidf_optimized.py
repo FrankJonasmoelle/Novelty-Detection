@@ -4,9 +4,7 @@ import json
 from datetime import datetime
 import numpy as np
 import pandas as pd
-from functools import lru_cache
 import multiprocessing
-import collections
 
 
 def generate_json(textfolder_path, jsonfolder_path, start_year=1885, end_year=1928):
@@ -60,16 +58,19 @@ def generate_json(textfolder_path, jsonfolder_path, start_year=1885, end_year=19
     sorted_dictionary = dict(sorted(dictionary.items(), key=lambda item: item[1]["date"]))
     return sorted_dictionary
 
-def get_prior_patent_list(date):
-    """returns list of patent_ids that have been published prior to *date*"""
-    prior_patent_ls = []
-    for key, value in PATENT_MAPPING.items():
-        current_date = value["date"]
-        if current_date < date:
-            prior_patent_ls.append(key)
-        else:
-            break # since patent_mapping is sorted by date, we can exit (there are no more earlier patents)
-    return prior_patent_ls 
+def get_prior_patent_list(patent):
+    """Returns list of patent_ids that have been published prior to *patent*"""
+    if patent in PATENT_TO_INDEX:
+        index = PATENT_TO_INDEX[patent]
+        return PATENT_LIST[:index]
+    return []
+
+def get_sortet_patent_list():
+    """Returns list of patent ids, sorted by date."""
+    patent_list = []
+    for key, _ in PATENT_MAPPING.items():
+        patent_list.append(key)
+    return np.array(patent_list)
 
 def get_patents_in_timerange(start_year, end_year):
     """returns list of patent ids within a given time range"""
@@ -80,7 +81,6 @@ def get_patents_in_timerange(start_year, end_year):
             ls.append(key)
     return ls
 
-@lru_cache(maxsize=500000)  
 def calculate_tf(patent_id, term):
     """receives patent_mapping, patent_id and the term of interest. Returns the frequency of *term* in the patent
     identified by *patent_id*"""
@@ -104,12 +104,21 @@ def generate_tf_mapping(start_date, end_date):
     return tf_mapping
     
 def calculate_term_frequencies_per_patent(start_year, end_year):
-     # generate the following dict:
-    # {
-    #     "1114": {"term_1": 192, "term_2": 185},
-    #     "1119" {"term_1": 193, "term_2": 185},
-    #       ...
-    # }
+    """generates a dict that keeps track of the number of occurances of unique words until each patent document.
+    Used for more efficient bidf calculations:
+    {
+        "1114": {'counts': {'undanskaffas': 1,
+                            'vagna': 24,
+                            'cylind': 82,
+                            'förut': 237,
+                            'äfv': 522,
+                            ...
+                            },
+                'num_prior_patents': 871},
+        "1115": {'counts': {....},
+                 'num_prior_patents': ...}
+    }
+    """
     global_term_count = {}
     term_count_per_patent = {}
 
@@ -132,33 +141,68 @@ def calculate_term_frequencies_per_patent(start_year, end_year):
         num_prior_patents += 1
     return term_count_per_patent
 
+def calculate_term_frequencies_per_patent_test(total_start_year, start_year, end_year):
+    global_term_count = {}
+    term_count_per_patent = {}
+    num_prior_patents = 0
+
+    # Process patents from total_start_year to start_year
+    if total_start_year != start_year: # for 1885, skip it
+        patents = get_patents_in_timerange(start_year=total_start_year, end_year=start_year-1)
+        for patent in patents:
+            text = PATENT_MAPPING[patent]["text"]
+            local_vocab = set(text)
+            for term in local_vocab:
+                if term in global_term_count:
+                    global_term_count[term] += 1
+                else:
+                    global_term_count[term] = 1
+            num_prior_patents += 1
+
+    # Process patents from start_year to end_year
+    patents = get_patents_in_timerange(start_year=start_year, end_year=end_year)
+    for patent in patents:
+        text = PATENT_MAPPING[patent]["text"]
+        local_vocab = set(text)
+        for term in local_vocab:
+            if term in global_term_count:
+                global_term_count[term] += 1
+            else:
+                global_term_count[term] = 1
+        term_count_per_patent[patent] = {"counts": global_term_count.copy(), "num_prior_patents": num_prior_patents}
+        num_prior_patents += 1
+
+    return term_count_per_patent
+
+
 def search_w_count(patent, term):
     """Helper function for retrival of the number of patents that include a certain term until a specific date. 
     It uses the *term_count_per_patent* dictionary to search for the last occurance of term *term* and 
     returns the accurate count used for the bidf calculation."""
-    prevous_patent_ids_ls = get_prior_patent_list(PATENT_MAPPING[patent]["date"]) #everything before id
-    # search reversed list
-    prevous_patent_ids_ls.reverse()
-    for patent_id in prevous_patent_ids_ls:
-        # check if term exists in term_count_per_patent for patent_id
+    prior_patent_list = get_prior_patent_list(patent)
+    for patent_id in reversed(prior_patent_list):
+        # check if patent_id has the term and return its count
         if term in TERM_COUNT_PER_PATENT[patent_id]["counts"]:
-            w_count = TERM_COUNT_PER_PATENT[patent_id]["counts"][term]
-            return w_count
-    # if nothing is returned by now, the term does not exist before patent_id, i.e., count is 0
+            return TERM_COUNT_PER_PATENT[patent_id]["counts"][term]
+    # If the term does not exist before patent_id, return 0
     return 0
 
-@lru_cache(maxsize=5000000)  
 def calculate_bidf_memoization(term, earlier_patent_id):
     """Calculates the BIDF score for a given patent and term using memoization. 
     High value: Most patents before *patent_id* do not contain word *term*
     Low value: Most patents before *patent_id* do contain word *term* 
     """
-    num_patents_prior = TERM_COUNT_PER_PATENT[earlier_patent_id]["num_prior_patents"]
-    try: 
+    # num_patents_prior = TERM_COUNT_PER_PATENT[earlier_patent_id]["num_prior_patents"]
+    # if term in TERM_COUNT_PER_PATENT[earlier_patent_id]["counts"]:
+    #     num_patents_prior_with_w = TERM_COUNT_PER_PATENT[earlier_patent_id]["counts"][term]
+    # else: 
+    #     # search for it in previous patents in term_count_per_patent
+    #     num_patents_prior_with_w = search_w_count(earlier_patent_id, term)
+    num_patents_prior = len(get_prior_patent_list(earlier_patent_id))
+    if term in TERM_COUNT_PER_PATENT[earlier_patent_id]["counts"]:
         num_patents_prior_with_w = TERM_COUNT_PER_PATENT[earlier_patent_id]["counts"][term]
-    except Exception as e: # exception will happen if earlier_patent does not include "term", in this case search in term_count_per_patent for previous count
-        # search for it in previous patents in term_count_per_patent
-        num_patents_prior_with_w = search_w_count(earlier_patent_id, term)
+    else:
+        num_patents_prior_with_w = 0
     try:
         bidf = math.log(num_patents_prior / (1 + num_patents_prior_with_w))
     except Exception as e: # exception will happen for the first document as there will be no prior documents
@@ -166,7 +210,6 @@ def calculate_bidf_memoization(term, earlier_patent_id):
         return 0
     return bidf
 
-@lru_cache(maxsize=5000000) 
 def calculate_patent_similarity_memoization(patent_id_i, patent_id_j):
     """calculates the cosine similarity between patent i and patend j using memoization. 
     Steps:
@@ -294,7 +337,7 @@ def load_existing_results(path):
 
 def worker(patent):
     """Worker function for importance calculation for multiprocessing"""
-    novelty, impact, importance = calculate_patent_importance(patent, backward_years=5, forward_years=5)
+    novelty, impact, importance = calculate_patent_importance(patent, backward_years=5, forward_years=10)
     print(f"Scores calculated for patent {patent}: Novelty: {novelty}, Impact: {impact}, Importance: {importance}")
     scores = {"novelty": novelty, "impact": impact, "importance": importance, "year": PATENT_MAPPING[patent]["date"]}
     return patent, scores
@@ -327,10 +370,16 @@ jsonfolder_path = "../json/"
 PATENT_MAPPING = generate_json(textfolder_path, jsonfolder_path)
 
 print("generating term count dictionary")
-TERM_COUNT_PER_PATENT = calculate_term_frequencies_per_patent(start_year=1885, end_year=1928)
+# TERM_COUNT_PER_PATENT = calculate_term_frequencies_per_patent(start_year=1885, end_year=1928)
+TERM_COUNT_PER_PATENT = calculate_term_frequencies_per_patent_test(1885, 1909, 1918)
 
 print("generating tf mapping")
 TF_MAPPING = generate_tf_mapping(start_date=1885, end_date=1928)
+
+print("generating sorted patent list")
+PATENT_LIST = get_sortet_patent_list()
+PATENT_TO_INDEX = {patent: idx for idx, patent in enumerate(PATENT_LIST)}
+
 
 if __name__=="__main__":
     main()
