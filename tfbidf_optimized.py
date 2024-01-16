@@ -142,7 +142,7 @@ def calculate_term_frequencies_per_patent(start_year, end_year):
         num_prior_patents += 1
     return term_count_per_patent
 
-def calculate_term_frequencies_per_patent_test(total_start_year, start_year, end_year):
+def calculate_term_frequencies_per_patent(total_start_year, start_year, end_year):
     global_term_count = {}
     term_count_per_patent = {}
     num_prior_patents = 0
@@ -192,7 +192,24 @@ def calculate_bidf(term, earlier_patent_id):
         return 0
     return bidf
 
-def calculate_patent_similarity_memoization(patent_id_i, patent_id_j):
+def get_top_n_tfbidf_scores(patent_id, n=5):
+    """returns n terms with highest tfbidf scores for a given patent"""
+    text = PATENT_MAPPING[patent_id]["text"]
+    vocab = np.array(list(set(text)))
+    tfbidf_arr = np.zeros(len(vocab))   
+    for i in range(len(vocab)):
+        term = vocab[i]
+        tf = calculate_tf(patent_id, term)
+        bidf = calculate_bidf(term, patent_id)
+        tfbidf_w = tf*bidf
+        tfbidf_arr[i] = tfbidf_w
+    # get max n tfbidf terms
+    indices = np.argpartition(tfbidf_arr, -n)[-n:] # gets indices of n largest values
+    indices = indices[np.argsort(tfbidf_arr[indices])[::-1]] # sorts the indices in descending order
+    top_n_tfbidf_scores = vocab[indices] # map to vocabulary
+    return top_n_tfbidf_scores
+
+def calculate_patent_similarity(patent_id_i, patent_id_j):
     """calculates the cosine similarity between patent i and patend j using memoization. 
     Steps:
     1) calculate TFBIDF for patent i and j, with t=min(t_i, t_j)
@@ -264,13 +281,9 @@ def calculate_backward_similarity(patent_id, backward_years):
     the *backward_year*s prior to the current patent's filing"""
     backward_patents = get_backward_document_list(patent_id, backward_years)
     backward_similarity = 0
-    count = 0
     for backward_patent_id in backward_patents:
-        similarity = calculate_patent_similarity_memoization(patent_id, backward_patent_id)
+        similarity = calculate_patent_similarity(patent_id, backward_patent_id)
         backward_similarity += similarity
-        if count % 100 == 0:
-            print(f"BS between {patent_id} and {backward_patent_id} is {similarity}")
-        count += 1
     # scale backward similarity
     try:
         backward_similarity = backward_similarity / len(backward_patents)
@@ -285,13 +298,9 @@ def calculate_forward_similarity(patent_id, forward_years):
     filed in the *forward_years* after the current patent's filing"""
     forward_patents = get_forward_document_list(patent_id, forward_years)
     forward_similarity = 0
-    count = 0
     for forward_patent_id in forward_patents:
-        similarity = calculate_patent_similarity_memoization(patent_id, forward_patent_id)
+        similarity = calculate_patent_similarity(patent_id, forward_patent_id)
         forward_similarity += similarity
-        if count % 100 == 0:
-            print(f"FS between {patent_id} and {forward_patent_id} is {similarity}")
-        count += 1
     # scale forward similarity
     try:
         forward_similarity = forward_similarity / len(forward_patents)
@@ -320,8 +329,10 @@ def load_existing_results(path):
 def worker(patent):
     """Worker function for importance calculation for multiprocessing"""
     novelty, impact, importance = calculate_patent_importance(patent, backward_years=5, forward_years=10)
+    top_tfbidf_terms_ls = get_top_n_tfbidf_scores(patent, n=5)
     print(f"Scores calculated for patent {patent}: Novelty: {novelty}, Impact: {impact}, Importance: {importance}")
-    scores = {"novelty": novelty, "impact": impact, "importance": importance, "year": PATENT_MAPPING[patent]["date"]}
+    scores = {"novelty": novelty, "impact": impact, "importance": importance, "year": PATENT_MAPPING[patent]["date"], 
+              "top_tfbidf_terms": top_tfbidf_terms_ls}
     return patent, scores
 
 def main(output_path="results.csv"):
@@ -353,7 +364,7 @@ PATENT_MAPPING = generate_json(textfolder_path, jsonfolder_path)
 
 print("generating term count dictionary")
 # TERM_COUNT_PER_PATENT = calculate_term_frequencies_per_patent(start_year=1885, end_year=1928)
-TERM_COUNT_PER_PATENT = calculate_term_frequencies_per_patent_test(1885, 1909, 1918)
+TERM_COUNT_PER_PATENT = calculate_term_frequencies_per_patent(1885, 1885, 1900)
 
 print("generating tf mapping")
 TF_MAPPING = generate_tf_mapping(start_date=1885, end_date=1928)
