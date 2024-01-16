@@ -65,7 +65,7 @@ def get_prior_patent_list(patent):
         return PATENT_LIST[:index]
     return []
 
-def get_sortet_patent_list():
+def get_sorted_patent_list():
     """Returns list of patent ids, sorted by date."""
     patent_list = []
     for key, _ in PATENT_MAPPING.items():
@@ -90,6 +90,7 @@ def calculate_tf(patent_id, term):
         return TF_MAPPING[patent_id][term]
     
 def generate_tf_mapping(start_date, end_date):
+    """Generates dictionary that stores the term frequency scores for each term in a patent."""
     tf_mapping = {}
     patents = get_patents_in_timerange(start_date, end_date)
     for patent in patents:
@@ -171,33 +172,14 @@ def calculate_term_frequencies_per_patent_test(total_start_year, start_year, end
                 global_term_count[term] = 1
         term_count_per_patent[patent] = {"counts": global_term_count.copy(), "num_prior_patents": num_prior_patents}
         num_prior_patents += 1
-
     return term_count_per_patent
 
 
-def search_w_count(patent, term):
-    """Helper function for retrival of the number of patents that include a certain term until a specific date. 
-    It uses the *term_count_per_patent* dictionary to search for the last occurance of term *term* and 
-    returns the accurate count used for the bidf calculation."""
-    prior_patent_list = get_prior_patent_list(patent)
-    for patent_id in reversed(prior_patent_list):
-        # check if patent_id has the term and return its count
-        if term in TERM_COUNT_PER_PATENT[patent_id]["counts"]:
-            return TERM_COUNT_PER_PATENT[patent_id]["counts"][term]
-    # If the term does not exist before patent_id, return 0
-    return 0
-
-def calculate_bidf_memoization(term, earlier_patent_id):
+def calculate_bidf(term, earlier_patent_id):
     """Calculates the BIDF score for a given patent and term using memoization. 
     High value: Most patents before *patent_id* do not contain word *term*
     Low value: Most patents before *patent_id* do contain word *term* 
     """
-    # num_patents_prior = TERM_COUNT_PER_PATENT[earlier_patent_id]["num_prior_patents"]
-    # if term in TERM_COUNT_PER_PATENT[earlier_patent_id]["counts"]:
-    #     num_patents_prior_with_w = TERM_COUNT_PER_PATENT[earlier_patent_id]["counts"][term]
-    # else: 
-    #     # search for it in previous patents in term_count_per_patent
-    #     num_patents_prior_with_w = search_w_count(earlier_patent_id, term)
     num_patents_prior = len(get_prior_patent_list(earlier_patent_id))
     if term in TERM_COUNT_PER_PATENT[earlier_patent_id]["counts"]:
         num_patents_prior_with_w = TERM_COUNT_PER_PATENT[earlier_patent_id]["counts"][term]
@@ -239,7 +221,7 @@ def calculate_patent_similarity_memoization(patent_id_i, patent_id_j):
         term = union[i]
         tf_i = calculate_tf(patent_id_i, term)
         tf_j = calculate_tf(patent_id_j, term)
-        bidf_w = calculate_bidf_memoization(term, earlier_patent_id) # need to calculate it only once
+        bidf_w = calculate_bidf(term, earlier_patent_id) # need to calculate it only once
 
         w_i[i] = tf_i * bidf_w # if patent i/j does not include term, value will be 0
         w_j[i] = tf_j * bidf_w
@@ -377,7 +359,7 @@ print("generating tf mapping")
 TF_MAPPING = generate_tf_mapping(start_date=1885, end_date=1928)
 
 print("generating sorted patent list")
-PATENT_LIST = get_sortet_patent_list()
+PATENT_LIST = get_sorted_patent_list()
 PATENT_TO_INDEX = {patent: idx for idx, patent in enumerate(PATENT_LIST)}
 
 
