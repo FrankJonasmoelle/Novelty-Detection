@@ -5,6 +5,8 @@ test_preprocessed/
 myenv/
 .DS_STORE
 *.ipynb
+# keep this one
+!demonstration.ipynb
 *.csv
 venv_novelty/
 json/
