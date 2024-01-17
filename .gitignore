@@ -12,6 +12,7 @@ venv_novelty/
 json/
 test_json/
 *.png
+!plots/num_patents_per_year.png
 *.xlsx
 
 # Byte-compiled / optimized / DLL files
