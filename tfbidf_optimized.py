@@ -65,20 +65,6 @@ def generate_json(textfolder_path, jsonfolder_path, start_year=1885, end_year=19
     sorted_dictionary = dict(sorted(dictionary.items(), key=lambda item: item[1]["date"]))
     return sorted_dictionary
 
-# def generate_tf_mapping(start_date, end_date):
-#     """Generates dictionary that stores the term frequency scores for each term in a patent."""
-#     tf_mapping = {}
-#     patents = get_patents_in_timerange(start_date, end_date)
-#     for patent in patents:
-#         text = PATENT_MAPPING[patent]["text"]
-#         term_frequencies = {}
-#         for term in set(text):
-#             tf_w = sum(1 for token in text if token == term)
-#             tf_w = tf_w / len(text)
-#             term_frequencies[term] = tf_w
-#         tf_mapping[patent] = term_frequencies
-#     return tf_mapping
-
 def generate_tf_mapping(start_date, end_date):
     """Generates dictionary that stores the term frequency scores for each term in a patent."""
     tf_mapping = {}
