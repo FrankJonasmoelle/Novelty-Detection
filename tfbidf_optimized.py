@@ -74,7 +74,7 @@ def generate_tf_mapping(start_date, end_date):
         tf_mapping[patent] = term_frequencies
     return tf_mapping
 
-def calculate_term_frequencies_per_patent(total_start_year, start_year, end_year):
+def calculate_num_term_occurances(total_start_year, start_year, end_year):
     """generates a dict that keeps track of the number of occurances of unique words until each patent document.
     Used for more efficient bidf calculations:
     {
@@ -166,7 +166,7 @@ def find_similar_words(min_edit_distance=1, max_edit_distance=2):
                     similar_words_dict[term_1].append(term_2)      
     return similar_words_dict
 
-def map_similar_words():
+def map_similar_words(path="word_mapping.csv"):
     """generates a mapping between every word in the vocabulary to the closest word based on the levensthein distance.
     Example output:
     {
@@ -179,6 +179,12 @@ def map_similar_words():
         'absorberingskamrarne': 'absorberingskammare',
     }
     """
+    if os.path.exists(path):
+        df_mapping = pd.read_csv(path, index_col=0)
+        results = df_mapping.to_dict(orient='index')
+        results = {str(key): value for key, value in results.items()} # convert keys to strings
+        return mapping
+    
     similar_words_dict = find_similar_words()
     mapping = {}
     for term, similar_word_ls in similar_words_dict.items():
@@ -188,6 +194,9 @@ def map_similar_words():
         for similar_word in similar_word_ls:
             if similar_word not in mapping:
                 mapping[similar_word] = reference_word
+    # save it to not have to recompute it everytime
+    df = pd.DataFrame.from_dict(mapping, orient='index')
+    df.to_csv(path) 
     return mapping
 
 def apply_word_mapping(word_mapping):
@@ -381,7 +390,6 @@ def calculate_backward_similarity(patent_id, backward_years):
     except Exception as e:
         print(e)
         backward_similarity = 0
-    print(f"backward similarity for patent {patent_id}: {backward_similarity}")
     return backward_similarity
 
 def calculate_forward_similarity(patent_id, forward_years):
@@ -397,8 +405,7 @@ def calculate_forward_similarity(patent_id, forward_years):
         forward_similarity = forward_similarity / len(forward_patents)
     except Exception as e:
         print(e)
-        forward_similarity = 0
-    print(f"forward similarity for patent {patent_id}: {forward_similarity}")
+        forward_similarity = 0 
     return forward_similarity
 
 def calculate_patent_importance(patent_id, backward_years=5, forward_years=10):
@@ -453,13 +460,22 @@ def main(output_path="results.csv"):
 print("generating patent mapping")
 textfolder_path = "../data_preprocessed/"
 jsonfolder_path = "../json/"
-PATENT_MAPPING = generate_json(textfolder_path, jsonfolder_path, start_year=1885, end_year=1929) # TODO: Until 1929
+PATENT_MAPPING = generate_json(textfolder_path, jsonfolder_path, start_year=1885, end_year=1939)
+
+# preprocessing
+print("preprocessing step: mapping similar words together")
+word_mapping = map_similar_words()
+print("preprocessing step: applying new word mapping")
+apply_word_mapping(word_mapping) # updates text in PATENT_MAPPING
+# cut words under threshold
+print("preprocessing step: removing low frequency words")
+remove_low_frequency_words_parallel(min_frequency=2) # updates text in PATENT_MAPPING
 
 print("generating term count dictionary")
-TERM_COUNT_PER_PATENT = calculate_term_frequencies_per_patent(1885, 1885, 1910) # TODO: Until 1929
+TERM_COUNT_PER_PATENT = calculate_num_term_occurances(1885, 1885, 1910) # TODO: Until 1929
 
 print("generating tf mapping")
-TF_MAPPING = generate_tf_mapping(start_date=1885, end_date=1910) # TODO: Until 1929
+TF_MAPPING = generate_tf_mapping(start_date=1885, end_date=1939)
 
 print("generating sorted patent list")
 PATENT_LIST = get_sorted_patent_list()
@@ -467,13 +483,4 @@ PATENT_TO_INDEX = {patent: idx for idx, patent in enumerate(PATENT_LIST)}
 
 
 if __name__=="__main__":
-    # preprocessing
-    print("preprocessing step: mapping similar words together")
-    word_mapping = map_similar_words()
-    print("preprocessing step: applying new word mapping")
-    apply_word_mapping(word_mapping) # updates text in PATENT_MAPPING
-    # cut words under threshold
-    print("preprocessing step: removing low frequency words")
-    remove_low_frequency_words_parallel(min_frequency=2) # updates text in PATENT_MAPPING
-    
     main()
