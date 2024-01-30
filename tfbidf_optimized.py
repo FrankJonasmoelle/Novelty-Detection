@@ -38,7 +38,7 @@ def generate_json(textfolder_path, jsonfolder_path, start_year=1885, end_year=19
         except Exception as e:
             print(e)
             continue
-        date = json_file["grant_date"]
+        date = json_file["application_date"]
         if date is None:
             continue # skip patent
         # get meta information
@@ -145,7 +145,7 @@ def levenshtein_distance(term_1, term_2):
         distances = new_distances
     return distances[-1]
 
-def find_similar_words(min_edit_distance=1, max_edit_distance=2):
+def find_similar_words(max_edit_distance=1):
     """goes through whole vocabulary and finds similar words for each word. Sorts the words alphabetically and only
     checks the next n words to speed up computations."""
     n = 30 # check only the next n words after a word (speeds up computation)
@@ -156,9 +156,8 @@ def find_similar_words(min_edit_distance=1, max_edit_distance=2):
         next_n_terms = sorted_total_vocab[index+1:index+n+1] # only check next 20 terms
         for term_2 in next_n_terms:
             edit_distance = levenshtein_distance(term_1, term_2)
-            # only consider words with small edit distance (smaller edit distance for smaller words)
-            if (len(term_1) < 5 and edit_distance < min_edit_distance) or \
-                (edit_distance <= max_edit_distance and len(term_1) > 5 and len(term_2) > 5):
+            # only consider words long words
+            if (edit_distance <= max_edit_distance and len(term_1) > 5 and len(term_2)):
                 # add them to the same word 
                 if not term_1 in similar_words_dict:
                     similar_words_dict[term_1] = [term_2]
@@ -180,9 +179,8 @@ def map_similar_words(path="word_mapping.csv"):
     }
     """
     if os.path.exists(path):
-        df_mapping = pd.read_csv(path, index_col=0)
-        results = df_mapping.to_dict(orient='index')
-        results = {str(key): value for key, value in results.items()} # convert keys to strings
+        df_mapping = pd.read_csv(path)
+        mapping = {row['Unnamed: 0']: row['0'] for index, row in df_mapping.iterrows()}
         return mapping
     
     similar_words_dict = find_similar_words()
@@ -209,8 +207,8 @@ def apply_word_mapping(word_mapping):
 # functions to cut words below certain frequency
 def calculate_total_term_frequencies(start_year=1885, end_year=1939):
     """calculates frequency for each term in patents within time range"""
-    vocab_tf = {}
     patents = get_patents_in_timerange(start_year, end_year)
+    vocab_tf = {}
     for patent in patents:
         text = PATENT_MAPPING[patent]["text"]
         for term in text:
@@ -220,12 +218,26 @@ def calculate_total_term_frequencies(start_year=1885, end_year=1939):
                 vocab_tf[term] = 1
     return vocab_tf
 
-def get_low_frequency_words(min_frequency=2):
-    """returns set of words that occurr less than *min_frequency*"""
+def calculate_term_range(start_year=1885, end_year=1939):
+    """calculates number of patents each term occurs in"""
+    patents = get_patents_in_timerange(start_year, end_year)
+    vocab_tr = {}
+    for patent in patents:
+        text = PATENT_MAPPING[patent]["text"]
+        vocab = set(text)
+        for term in vocab:
+            if term in vocab_tr:
+                vocab_tr[term] += 1
+            else:
+                vocab_tr[term] = 1
+    return vocab_tr
+
+def get_words_to_remove_by_frequency(min_frequency, max_frequency):
+    """returns set of words that occurr less than *min_frequency* or more than *max_frequency*"""
     vocab_tf = calculate_total_term_frequencies()
     words_to_remove = set()
     for key, value in vocab_tf.items():
-        if value < min_frequency:
+        if value < min_frequency or value >= max_frequency:
             words_to_remove.add(key)
     return words_to_remove
 
@@ -234,15 +246,45 @@ def remove_words(patent_id, text, words_to_remove):
     new_text = [word for word in text if word not in words_to_remove]
     return patent_id, new_text
 
-def remove_low_frequency_words_parallel(min_frequency=2):
-    """Iterates through whole *PATENT_MAPPING* and removes words that occurr less than *min_frequency*"""
-    words_to_remove = get_low_frequency_words(min_frequency)
+def remove_words_by_frequency(min_frequency, max_frequency):
+    """Iterates through whole *PATENT_MAPPING* and removes words that occurr less than *min_frequency* or more than
+    *max_frequency*"""
+    words_to_remove = get_words_to_remove_by_frequency(min_frequency, max_frequency)
     
     with multiprocessing.Pool() as pool:
         results = pool.starmap(remove_words, [(patent_id, data["text"], words_to_remove) 
                                               for patent_id, data in PATENT_MAPPING.items()])
     for patent_id, new_text in results:
         PATENT_MAPPING[patent_id]["text"] = new_text
+
+def get_words_to_remove_by_range(min_range):
+    """returns set of words that have range smaller than *min_range*"""
+    vocab_tr = get_words_to_remove_by_range(min_range)
+    words_to_remove = set()
+    for key, value in vocab_tr.items():
+        if value < min_range:
+            words_to_remove.add(key)
+    return words_to_remove
+
+def remove_words_by_range(min_range):
+    """Iterates through whole *PATENT_MAPPING* and removes words that have range less than *min_frequency*"""
+    words_to_remove = get_words_to_remove_by_range(min_range)
+    
+    with multiprocessing.Pool() as pool:
+        results = pool.starmap(remove_words, [(patent_id, data["text"], words_to_remove) 
+                                              for patent_id, data in PATENT_MAPPING.items()])
+    for patent_id, new_text in results:
+        PATENT_MAPPING[patent_id]["text"] = new_text 
+
+def remove_short_words(min_characters):
+    """removes words that have less than *min_characters*"""
+    for patent_id, data in PATENT_MAPPING.items():
+        text = data["text"]
+        new_text = []
+        for token in text:
+            if len(token) >= min_characters: 
+                new_text.append(token)
+        PATENT_MAPPING[patent_id]["text"] = new_text       
 
 def get_prior_patent_list(patent):
     """Returns list of patent_ids that have been published prior to *patent*"""
@@ -468,11 +510,15 @@ word_mapping = map_similar_words()
 print("preprocessing step: applying new word mapping")
 apply_word_mapping(word_mapping) # updates text in PATENT_MAPPING
 # cut words under threshold
-print("preprocessing step: removing low frequency words")
-remove_low_frequency_words_parallel(min_frequency=2) # updates text in PATENT_MAPPING
+print("preprocessing step: remove short words")
+remove_short_words(min_characters=3)
+print("preprocessing step: removing words by their frequency")
+remove_words_by_frequency(min_frequency=15, max_frequency=1000) # updates text in PATENT_MAPPING
+print("preprocessing step: remove words by range")
+remove_words_by_range(min_range=11)
 
 print("generating term count dictionary")
-TERM_COUNT_PER_PATENT = calculate_num_term_occurances(1885, 1885, 1910) # TODO: Until 1929
+TERM_COUNT_PER_PATENT = calculate_num_term_occurances(1885, 1885, 1890) # TODO: Until 1929
 
 print("generating tf mapping")
 TF_MAPPING = generate_tf_mapping(start_date=1885, end_date=1939)
